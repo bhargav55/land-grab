@@ -10,8 +10,7 @@ Reasons for choosing Avalanche:
 1. **Fast Finality**: Sub-second transaction finality ensures quick land claim confirmations
 2. **Low Fees**: Significantly lower transaction costs compared to Ethereum mainnet
 3. **EVM Compatibility**: Full compatibility with Ethereum tools and libraries
-4. **Scalability**: High throughput (4,500+ TPS) for handling multiple land claims
-5. **Developer Friendly**: Strong developer tooling and documentation
+
 
 ### Smart Contract Development
 - **Language**: Solidity v0.8.x
