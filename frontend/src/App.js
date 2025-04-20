@@ -1,12 +1,18 @@
 import React, { useState, useEffect } from 'react';
-import { Container, Typography, Button, Box, CircularProgress, Snackbar } from '@mui/material';
+import { Container, Typography, Button, Box, CircularProgress, Snackbar, Dialog, DialogTitle, DialogContent, DialogActions, TextField } from '@mui/material';
 import Map from './components/Map';
-import { getWeb3Provider, getUserManagerContract, getLandRegistryContract } from './utils/web3';
+import { getWeb3Provider, getUserManagerContract, getLandRegistryContract, releaseLand, swapLand, getLandOwner, isLandOwned } from './utils/web3';
 import './App.css';
 
 function App() {
   const [account, setAccount] = useState(null);
   const [loading, setLoading] = useState(false);
+  const [isOwner, setIsOwner] = useState(false);
+  const [landOwner, setLandOwner] = useState(null);
+  const [isLandOwnedByAnyone, setIsLandOwnedByAnyone] = useState(false);
+  const [swapDialogOpen, setSwapDialogOpen] = useState(false);
+  const [otherLandId, setOtherLandId] = useState('');
+  const [otherOwner, setOtherOwner] = useState('');
   const [selectedLocation, setSelectedLocation] = useState(null);
   const [notification, setNotification] = useState({ open: false, message: '' });
   const [isRegistered, setIsRegistered] = useState(false);
@@ -102,8 +108,30 @@ function App() {
     }
   };
 
-  const handleLocationSelect = (location) => {
+  const checkLandOwnership = async (what3wordsId) => {
+    try {
+      const owned = await isLandOwned(what3wordsId);
+      setIsLandOwnedByAnyone(owned);
+
+      if (owned) {
+        const owner = await getLandOwner(what3wordsId);
+        setLandOwner(owner);
+        setIsOwner(owner.toLowerCase() === account.toLowerCase());
+      } else {
+        setLandOwner(null);
+        setIsOwner(false);
+      }
+    } catch (error) {
+      console.error('Error checking land ownership:', error);
+      setIsLandOwnedByAnyone(false);
+      setLandOwner(null);
+      setIsOwner(false);
+    }
+  };
+
+  const handleLocationSelect = async (location) => {
     setSelectedLocation(location);
+    await checkLandOwnership(location.words);
   };
 
   const registerUser = async () => {
@@ -118,6 +146,39 @@ function App() {
     } catch (error) {
       console.error('Error registering user:', error);
       showNotification('Error registering user: ' + error.message);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleRelease = async () => {
+    if (!selectedLocation) return;
+    
+    setLoading(true);
+    try {
+      await releaseLand(selectedLocation.words);
+      setSelectedLocation(null);
+      showNotification('Land released successfully!');
+    } catch (error) {
+      console.error('Error releasing land:', error);
+      showNotification('Failed to release land: ' + error.message);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleSwap = async () => {
+    if (!selectedLocation || !otherLandId || !otherOwner) return;
+    
+    setLoading(true);
+    try {
+      await swapLand(selectedLocation.words, otherLandId, otherOwner);
+      setSwapDialogOpen(false);
+      setOtherLandId('');
+      setOtherOwner('');
+    } catch (error) {
+      console.error('Error swapping land:', error);
+      alert('Failed to swap land. ' + error.message);
     } finally {
       setLoading(false);
     }
@@ -199,19 +260,54 @@ function App() {
             }}>
               {selectedLocation ? (
                 <>
-                  <Typography variant="body1" gutterBottom color="success.main">
-                    Selected Location: {selectedLocation.words}
-                  </Typography>
-                  <Button
-                    variant="contained"
-                    onClick={claimLand}
-                    disabled={loading}
-                    size="large"
-                    fullWidth
-                    sx={{ mt: 1 }}
-                  >
-                    {loading ? 'Claiming Land...' : 'Claim This Land'}
-                  </Button>
+                  <Box>
+                    <Typography variant="body1" gutterBottom color="success.main">
+                      Selected Location: {selectedLocation.words}
+                    </Typography>
+                    {isLandOwnedByAnyone && (
+                      <Typography variant="body2" color={isOwner ? 'success.main' : 'error.main'} gutterBottom>
+                        {isOwner ? 'You own this land' : `Owned by: ${landOwner}`}
+                      </Typography>
+                    )}
+                  </Box>
+                  <Box sx={{ display: 'flex', flexDirection: 'column', gap: 2, mt: 1 }}>
+                    <Box sx={{ display: 'flex', gap: 2 }}>
+                      {!isLandOwnedByAnyone && (
+                        <Button
+                          variant="contained"
+                          onClick={claimLand}
+                          disabled={loading}
+                          size="large"
+                          fullWidth
+                        >
+                          {loading ? 'Claiming Land...' : 'Claim This Land'}
+                        </Button>
+                      )}
+                      {isOwner && (
+                        <Button
+                          variant="outlined"
+                          color="error"
+                          onClick={handleRelease}
+                          disabled={loading}
+                          size="large"
+                          fullWidth
+                        >
+                          Release Land
+                        </Button>
+                      )}
+                    </Box>
+                    {isOwner && (
+                      <Button
+                        variant="outlined"
+                        onClick={() => setSwapDialogOpen(true)}
+                        disabled={loading}
+                        size="large"
+                        fullWidth
+                      >
+                        Swap Land
+                      </Button>
+                    )}
+                  </Box>
                 </>
               ) : (
                 <Typography variant="body1" color="text.secondary">
@@ -221,6 +317,39 @@ function App() {
             </Box>
           </Box>
         )}
+
+        <Dialog open={swapDialogOpen} onClose={() => setSwapDialogOpen(false)}>
+          <DialogTitle>Swap Land</DialogTitle>
+          <DialogContent>
+            <Box sx={{ pt: 2, display: 'flex', flexDirection: 'column', gap: 2 }}>
+              <Typography variant="body1" gutterBottom>
+                Your Land: {selectedLocation?.words}
+              </Typography>
+              <TextField
+                label="Other Land ID (what3words)"
+                value={otherLandId}
+                onChange={(e) => setOtherLandId(e.target.value)}
+                fullWidth
+              />
+              <TextField
+                label="Other Owner Address"
+                value={otherOwner}
+                onChange={(e) => setOtherOwner(e.target.value)}
+                fullWidth
+              />
+            </Box>
+          </DialogContent>
+          <DialogActions>
+            <Button onClick={() => setSwapDialogOpen(false)}>Cancel</Button>
+            <Button
+              onClick={handleSwap}
+              variant="contained"
+              disabled={!otherLandId || !otherOwner || loading}
+            >
+              {loading ? 'Swapping...' : 'Swap'}
+            </Button>
+          </DialogActions>
+        </Dialog>
 
         {loading && (
           <Box sx={{ display: 'flex', justifyContent: 'center', mt: 2 }}>
