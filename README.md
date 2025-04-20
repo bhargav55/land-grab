@@ -153,11 +153,6 @@ npx hardhat coverage
    - Ownership validation
    - Event emission for tracking
 
-2. **Frontend Security**
-   - Environment variable protection
-   - API key security
-   - Input validation
-   - Network validation
 
 
 ## License
