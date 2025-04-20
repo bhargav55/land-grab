@@ -130,20 +130,69 @@ npx hardhat test test/LandRegistry.test.js
 npx hardhat coverage
 ```
 
-## Smart Contracts
+## Smart Contract Architecture
+
+The DApp uses a two-contract architecture to separate concerns and improve maintainability:
+
+### Contract Separation Rationale
+
+1. **Separation of Concerns**
+   - UserManager handles user-related operations
+   - LandRegistry focuses on land ownership and transactions
+   - This separation allows independent upgrading of either system
+
+2. **Data Organization**
+   - User data and land data are logically separated
+   - Prevents data structure conflicts
+   - Makes the codebase more maintainable
+
+3. **Security Benefits**
+   - Granular access control
+   - Reduced attack surface per contract
+   - Easier to audit each contract independently
+
+4. **Gas Optimization**
+   - Smaller function calls when only user data is needed
+   - Efficient data storage patterns
+   - Reduced contract size improves deployment costs
 
 ### UserManager.sol
-- Handles user registration system
-- Maintains user status and permissions
-- Provides access control for land claiming
-- Events for registration tracking
+- **Purpose**: Manages user identities and permissions
+- **Responsibilities**:
+  - User registration and verification
+  - Maintains user status and permissions
+  - Tracks user's land holdings
+  - Access control for land operations
+- **Key Features**:
+  - Single registration per address
+  - Event emission for tracking
+  - Gas-efficient user data storage
 
 ### LandRegistry.sol
-- Manages land parcel ownership
-- Handles land claiming functionality
-- Stores What3Words identifiers
-- Prevents double-claiming of land
-- Events for ownership tracking
+- **Purpose**: Handles all land-related operations
+- **Responsibilities**:
+  - Land ownership management
+  - Claim/release operations
+  - Land swapping between users
+  - What3Words identifier storage
+- **Key Features**:
+  - Double-claim prevention
+  - Owner-only operations
+  - Integration with UserManager for permissions
+  - Event emission for transaction tracking
+
+### Contract Interaction Flow
+1. User registers through UserManager
+2. UserManager verifies user status
+3. LandRegistry checks with UserManager for permissions
+4. LandRegistry executes land operations
+5. UserManager updates user's land holdings
+
+This architecture ensures:
+- Clear responsibility boundaries
+- Efficient data management
+- Secure operation execution
+- Future extensibility
 
 ## Security Considerations
 
